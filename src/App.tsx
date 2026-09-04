@@ -1,58 +1,42 @@
-import { BrowserRouter, Routes, Route, Outlet } from "react-router-dom";
-import { AuthProvider, useAuth } from "./features/auth/context/AuthContext";
-import LoginPage from "./features/auth/pages/LoginPage";
-import PendingApprovalPage from "./features/auth/pages/PendingApprovalPage";
-import { ProtectedRoute } from "./routes/ProtectedRoute";
-import { Button } from "./components/ui/button";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import ProtectedRoute from "@/components/ProtectedRoute";
+import AdminDashboardPage from "@/pages/AdminDashboardPage";
+import ClientDashboardPage from "@/pages/ClientDashboardPage";
 
-function DashboardLayout() {
-  const { user, logout } = useAuth();
-  
-  return (
-    <div className="min-h-screen bg-slate-50 flex flex-col">
-      <header className="bg-white border-b px-6 py-4 flex justify-between items-center shadow-sm">
-        <h1 className="text-xl font-semibold text-slate-800">Dashboard</h1>
-        <div className="flex items-center gap-4">
-          <span className="text-sm text-slate-600">{user?.email}</span>
-          <Button variant="outline" size="sm" onClick={logout}>
-            Cerrar Sesión
-          </Button>
-        </div>
-      </header>
-      <main className="flex-1 p-6">
-        <Outlet />
-      </main>
-    </div>
-  );
-}
-
-function DashboardHome() {
-  return (
-    <div className="bg-white rounded-lg shadow-sm border p-6">
-      <h2 className="text-2xl font-bold mb-4">Bienvenido al Dashboard</h2>
-      <p className="text-slate-600">Has iniciado sesión con éxito y tu cuenta está aprobada.</p>
-    </div>
-  );
-}
+// Importaciones de Rama-Rojas (login)
+import { AuthProvider } from "@/features/auth/context/AuthContext";
+import LoginPage from "@/features/auth/pages/LoginPage";
+import PendingApprovalPage from "@/features/auth/pages/PendingApprovalPage";
 
 function App() {
   return (
     <AuthProvider>
       <BrowserRouter>
         <Routes>
+          <Route path="/" element={<Navigate to="/dashboard" replace />} />
           <Route path="/login" element={<LoginPage />} />
           <Route path="/pending-approval" element={<PendingApprovalPage />} />
-          
-          <Route 
-            path="/" 
+
+          <Route
+            path="/dashboard"
             element={
-              <ProtectedRoute>
-                <DashboardLayout />
+              <ProtectedRoute allowedRole="client">
+                <ClientDashboardPage />
               </ProtectedRoute>
             }
-          >
-            <Route index element={<DashboardHome />} />
-          </Route>
+          />
+
+          <Route
+            path="/admin"
+            element={
+              <ProtectedRoute allowedRole="admin">
+                <AdminDashboardPage />
+              </ProtectedRoute>
+            }
+          />
+
+          {/* Fallback: cualquier ruta desconocida va al dashboard */}
+          <Route path="*" element={<Navigate to="/dashboard" replace />} />
         </Routes>
       </BrowserRouter>
     </AuthProvider>
@@ -60,4 +44,3 @@ function App() {
 }
 
 export default App;
-
