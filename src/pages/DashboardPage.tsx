@@ -1,60 +1,34 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
-import {
-  LayoutDashboard,
-  UserCog,
-  LogOut,
-  ExternalLink,
-  FolderOpen,
-} from "lucide-react";
-import {
-  Sidebar,
-  SidebarBody,
-  SidebarLink,
-} from "@/components/ui/sidebar";
-import { projects } from "@/data/projects";
+import { LayoutDashboard, UserCog, LogOut, ExternalLink, FolderOpen } from "lucide-react";
+import { Sidebar, SidebarBody, SidebarLink, type SidebarLinkItem } from "@/components/ui/sidebar";
+import { projects, type Project } from "@/data/projects";
 import { cn } from "@/lib/utils";
 import { auth } from "@/config/firebase";
 import { signOut } from "firebase/auth";
 
-// ── Logo ────────────────────────────────────────────────────────────────────
-const Logo = () => (
-  <div className="font-normal flex space-x-2 items-center text-sm text-black dark:text-white py-1 relative z-20">
-    <div className="h-5 w-6 bg-black dark:bg-white rounded-br-lg rounded-tr-sm rounded-tl-lg rounded-bl-sm flex-shrink-0" />
-    <motion.span
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      className="font-semibold text-black dark:text-white whitespace-pre"
-    >
-      Mis Proyectos
-    </motion.span>
-  </div>
-);
+// ── Logo ─────────────────────────────────────────────────────────────────────
 
-const LogoIcon = () => (
-  <div className="font-normal flex space-x-2 items-center text-sm text-black dark:text-white py-1 relative z-20">
-    <div className="h-5 w-6 bg-black dark:bg-white rounded-br-lg rounded-tr-sm rounded-tl-lg rounded-bl-sm flex-shrink-0" />
+const SidebarLogo = ({ expanded }: { expanded: boolean }) => (
+  <div className="flex items-center gap-2 py-1">
+    <div className="h-5 w-6 flex-shrink-0 bg-black dark:bg-white rounded-br-lg rounded-tr-sm rounded-tl-lg rounded-bl-sm" />
+    {expanded && (
+      <motion.span
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        className="font-semibold text-sm text-black dark:text-white whitespace-pre"
+      >
+        Mis Proyectos
+      </motion.span>
+    )}
   </div>
 );
 
 // ── Project Card ─────────────────────────────────────────────────────────────
-interface ProjectCardProps {
-  name: string;
-  description: string;
-  image: string;
-  url: string;
-  tech: string[];
-}
 
-const ProjectCard = ({ name, description, image, url, tech }: ProjectCardProps) => (
-  <motion.div
-    initial={{ opacity: 0, y: 20 }}
-    animate={{ opacity: 1, y: 0 }}
-    transition={{ duration: 0.3 }}
-    className="bg-white dark:bg-neutral-800 rounded-2xl border border-neutral-200 dark:border-neutral-700 overflow-hidden shadow-sm hover:shadow-md transition-shadow flex flex-col"
-  >
-    {/* Imagen */}
+const ProjectCard = ({ name, description, image, url, tech }: Project) => (
+  <div className="bg-white dark:bg-neutral-800 rounded-2xl border border-neutral-200 dark:border-neutral-700 overflow-hidden shadow-sm hover:shadow-md transition-shadow flex flex-col">
     <div className="h-40 overflow-hidden">
       <img
         src={image}
@@ -63,7 +37,6 @@ const ProjectCard = ({ name, description, image, url, tech }: ProjectCardProps) 
       />
     </div>
 
-    {/* Contenido */}
     <div className="p-4 flex flex-col flex-1 gap-3">
       <div className="flex items-start justify-between gap-2">
         <h3 className="font-semibold text-neutral-900 dark:text-white text-base leading-tight">
@@ -76,7 +49,6 @@ const ProjectCard = ({ name, description, image, url, tech }: ProjectCardProps) 
         {description}
       </p>
 
-      {/* Tecnologías */}
       <div className="flex flex-wrap gap-1.5">
         {tech.map((t) => (
           <span
@@ -88,110 +60,105 @@ const ProjectCard = ({ name, description, image, url, tech }: ProjectCardProps) 
         ))}
       </div>
 
-      {/* Botón abrir */}
       <a
-        href={url}
-        target="_blank"
+        href={url || "#"}
+        target={url ? "_blank" : undefined}
         rel="noopener noreferrer"
-        className="mt-1 flex items-center justify-center gap-2 w-full py-2 px-4 bg-neutral-900 dark:bg-white text-white dark:text-neutral-900 text-sm font-medium rounded-xl hover:bg-neutral-700 dark:hover:bg-neutral-200 transition-colors"
+        aria-disabled={!url}
+        className={cn(
+          "mt-1 flex items-center justify-center gap-2 w-full py-2 px-4 text-sm font-medium rounded-xl transition-colors",
+          url
+            ? "bg-neutral-900 dark:bg-white text-white dark:text-neutral-900 hover:bg-neutral-700 dark:hover:bg-neutral-200"
+            : "bg-neutral-200 dark:bg-neutral-700 text-neutral-400 cursor-not-allowed"
+        )}
       >
         <ExternalLink className="h-4 w-4" />
-        Abrir proyecto
+        {url ? "Abrir proyecto" : "Próximamente"}
       </a>
     </div>
-  </motion.div>
+  </div>
 );
 
-// ── Dashboard Page ────────────────────────────────────────────────────────────
+// ── Sections ──────────────────────────────────────────────────────────────────
+
+type Section = "dashboard" | "profile";
+
+const NAV_ITEMS: { section: Section; label: string; Icon: React.ElementType }[] = [
+  { section: "dashboard", label: "Dashboard", Icon: LayoutDashboard },
+  { section: "profile",   label: "Perfil",    Icon: UserCog },
+];
+
+// ── Page ─────────────────────────────────────────────────────────────────────
+
 export default function DashboardPage() {
   const [open, setOpen] = useState(false);
-  const [activeSection, setActiveSection] = useState<"dashboard" | "profile">("dashboard");
+  const [activeSection, setActiveSection] = useState<Section>("dashboard");
   const navigate = useNavigate();
 
-  const authorizedProjects = projects.filter((p) => p.authorized);
+  const user = auth.currentUser;
 
   const handleLogout = async () => {
     await signOut(auth);
     navigate("/");
   };
 
-  const links = [
-    {
-      label: "Dashboard",
+  const navLinks: (SidebarLinkItem & { section: Section })[] = NAV_ITEMS.map(
+    ({ section, label, Icon }) => ({
+      section,
+      label,
       href: "#",
       icon: (
-        <LayoutDashboard
+        <Icon
           className={cn(
             "h-5 w-5 flex-shrink-0 transition-colors",
-            activeSection === "dashboard"
+            activeSection === section
               ? "text-neutral-900 dark:text-white"
               : "text-neutral-500 dark:text-neutral-400"
           )}
         />
       ),
-      onClick: () => setActiveSection("dashboard"),
-    },
-    {
-      label: "Perfil",
-      href: "#",
-      icon: (
-        <UserCog
-          className={cn(
-            "h-5 w-5 flex-shrink-0 transition-colors",
-            activeSection === "profile"
-              ? "text-neutral-900 dark:text-white"
-              : "text-neutral-500 dark:text-neutral-400"
-          )}
-        />
-      ),
-      onClick: () => setActiveSection("profile"),
-    },
-  ];
+    })
+  );
 
   return (
     <div className="flex h-screen w-full bg-neutral-50 dark:bg-neutral-900 overflow-hidden">
-      {/* ── Sidebar ── */}
+      {/* Sidebar */}
       <Sidebar open={open} setOpen={setOpen}>
         <SidebarBody className="justify-between gap-10">
-          {/* Top: logo + links */}
+          {/* Top */}
           <div className="flex flex-col flex-1 overflow-y-auto overflow-x-hidden">
-            {open ? <Logo /> : <LogoIcon />}
-            <div className="mt-8 flex flex-col gap-1">
-              {links.map((link) => (
+            <SidebarLogo expanded={open} />
+            <nav className="mt-8 flex flex-col gap-1">
+              {navLinks.map((link) => (
                 <SidebarLink
-                  key={link.label}
+                  key={link.section}
                   link={link}
-                  onClick={link.onClick}
+                  onClick={() => setActiveSection(link.section)}
                   className={cn(
                     "rounded-lg px-2 transition-colors",
-                    (activeSection === "dashboard" && link.label === "Dashboard") ||
-                    (activeSection === "profile" && link.label === "Perfil")
+                    activeSection === link.section
                       ? "bg-neutral-200 dark:bg-neutral-700"
                       : "hover:bg-neutral-200 dark:hover:bg-neutral-700"
                   )}
                 />
               ))}
-            </div>
+            </nav>
           </div>
 
-          {/* Bottom: salir */}
-          <div>
-            <SidebarLink
-              link={{
-                label: "Salir",
-                href: "#",
-                icon: (
-                  <LogOut className="h-5 w-5 flex-shrink-0 text-red-500" />
-                ),
-              }}
-              onClick={handleLogout}
-              className="rounded-lg px-2 hover:bg-red-50 dark:hover:bg-red-950/30"
-            />
-          </div>
+          {/* Bottom: logout */}
+          <SidebarLink
+            link={{
+              label: "Salir",
+              href: "#",
+              icon: <LogOut className="h-5 w-5 flex-shrink-0 text-red-500" />,
+            }}
+            onClick={handleLogout}
+            className="rounded-lg px-2 hover:bg-red-50 dark:hover:bg-red-950/30"
+          />
         </SidebarBody>
       </Sidebar>
 
-      {/* ── Main content ── */}
+      {/* Main */}
       <div className="flex flex-col flex-1 overflow-hidden">
         {/* Header */}
         <header className="flex items-center justify-between px-6 py-4 bg-white dark:bg-neutral-800 border-b border-neutral-200 dark:border-neutral-700 flex-shrink-0">
@@ -201,18 +168,16 @@ export default function DashboardPage() {
             </h1>
             <p className="text-sm text-neutral-500 dark:text-neutral-400">
               {activeSection === "dashboard"
-                ? `${authorizedProjects.length} proyectos disponibles`
-                : "Información de tu cuenta"}
+                ? `${projects.length} proyectos disponibles`
+                : user?.email ?? ""}
             </p>
           </div>
-          <div className="flex items-center gap-3">
-            <div className="h-9 w-9 rounded-full bg-neutral-200 dark:bg-neutral-700 flex items-center justify-center">
-              <UserCog className="h-5 w-5 text-neutral-500 dark:text-neutral-400" />
-            </div>
+          <div className="h-9 w-9 rounded-full bg-neutral-200 dark:bg-neutral-700 flex items-center justify-center">
+            <UserCog className="h-5 w-5 text-neutral-500 dark:text-neutral-400" />
           </div>
         </header>
 
-        {/* Content area */}
+        {/* Content */}
         <main className="flex-1 overflow-y-auto p-6">
           {activeSection === "dashboard" && (
             <motion.div
@@ -225,20 +190,14 @@ export default function DashboardPage() {
                 Proyectos autorizados
               </h2>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-                {authorizedProjects.map((project, idx) => (
+                {projects.map((project, idx) => (
                   <motion.div
                     key={project.id}
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: idx * 0.07 }}
                   >
-                    <ProjectCard
-                      name={project.name}
-                      description={project.description}
-                      image={project.image}
-                      url={project.url}
-                      tech={project.tech}
-                    />
+                    <ProjectCard {...project} />
                   </motion.div>
                 ))}
               </div>
@@ -260,22 +219,30 @@ export default function DashboardPage() {
                   </div>
                   <div>
                     <h3 className="text-lg font-semibold text-neutral-900 dark:text-white">
-                      Usuario
+                      {user?.displayName ?? "Sin nombre"}
                     </h3>
                     <p className="text-sm text-neutral-500 dark:text-neutral-400">
-                      Administrador de proyectos
+                      {user?.email ?? ""}
                     </p>
                   </div>
                 </div>
                 <hr className="border-neutral-200 dark:border-neutral-700" />
-                <div className="flex flex-col gap-3 text-sm text-neutral-600 dark:text-neutral-400">
+                <div className="flex flex-col gap-3 text-sm">
                   <div className="flex justify-between">
-                    <span className="font-medium text-neutral-700 dark:text-neutral-300">Proyectos autorizados</span>
-                    <span>{authorizedProjects.length}</span>
+                    <span className="font-medium text-neutral-700 dark:text-neutral-300">
+                      Proyectos autorizados
+                    </span>
+                    <span className="text-neutral-500 dark:text-neutral-400">
+                      {projects.length}
+                    </span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="font-medium text-neutral-700 dark:text-neutral-300">Rol</span>
-                    <span>Administrador</span>
+                    <span className="font-medium text-neutral-700 dark:text-neutral-300">
+                      Correo verificado
+                    </span>
+                    <span className="text-neutral-500 dark:text-neutral-400">
+                      {user?.emailVerified ? "Sí" : "No"}
+                    </span>
                   </div>
                 </div>
               </div>
