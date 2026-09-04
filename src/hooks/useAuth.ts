@@ -37,10 +37,19 @@ export function useAuth(): AuthState {
 
       // Escucha el documento del usuario en Firestore en tiempo real
       const userRef = doc(db, "users", user.uid);
-      const unsubscribeDoc = onSnapshot(userRef, (snapshot) => {
-        const role = (snapshot.data()?.role as UserRole) ?? null;
-        setState({ user, role, loading: false });
-      });
+      const unsubscribeDoc = onSnapshot(
+        userRef,
+        (snapshot) => {
+          const role = (snapshot.data()?.role as UserRole) ?? null;
+          setState({ user, role, loading: false });
+        },
+        (error) => {
+          console.error("Error fetching user role from Firestore:", error);
+          // Si hay error de permisos (por reglas de Firestore), 
+          // asumimos un rol por defecto o nulo para no quedarnos en "Cargando..."
+          setState({ user, role: "client", loading: false });
+        }
+      );
 
       // Limpia el listener de Firestore cuando el usuario cambia
       return () => unsubscribeDoc();

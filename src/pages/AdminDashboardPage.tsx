@@ -84,19 +84,33 @@ export default function AdminDashboardPage() {
   // Carga todos los proyectos (admin ve todos)
   useEffect(() => {
     const q = query(collection(db, "projects"), orderBy("name"));
-    return onSnapshot(q, (snap) => {
-      setProjects(snap.docs.map((d) => ({ id: d.id, ...d.data() } as Project)));
-      setLoadingProjects(false);
-    });
+    return onSnapshot(
+      q,
+      (snap) => {
+        setProjects(snap.docs.map((d) => ({ id: d.id, ...d.data() } as Project)));
+        setLoadingProjects(false);
+      },
+      (error) => {
+        console.error("Error fetching projects:", error);
+        setLoadingProjects(false);
+      }
+    );
   }, []);
 
   // Carga todos los usuarios
   useEffect(() => {
     const q = query(collection(db, "users"), orderBy("email"));
-    return onSnapshot(q, (snap) => {
-      setUsers(snap.docs.map((d) => ({ id: d.id, ...d.data() } as AppUser)));
-      setLoadingUsers(false);
-    });
+    return onSnapshot(
+      q,
+      (snap) => {
+        setUsers(snap.docs.map((d) => ({ id: d.id, ...d.data() } as AppUser)));
+        setLoadingUsers(false);
+      },
+      (error) => {
+        console.error("Error fetching users:", error);
+        setLoadingUsers(false);
+      }
+    );
   }, []);
 
   const handleLogout = async () => {
