@@ -201,9 +201,7 @@ export default function DashboardPage() {
                 : user?.email ?? ""}
             </p>
           </div>
-          <div className="h-9 w-9 rounded-full bg-neutral-200 dark:bg-neutral-700 flex items-center justify-center">
-            <UserCog className="h-5 w-5 text-neutral-500 dark:text-neutral-400" />
-          </div>
+
         </header>
 
         {/* Content */}
