@@ -28,34 +28,56 @@ export function useAuth(): AuthState {
   });
 
   useEffect(() => {
-    // Escucha cambios de sesión de Firebase Auth
-    const unsubscribeAuth = onAuthStateChanged(auth, (user) => {
-      if (!user) {
+    let unsubscribeDoc: (() => void) | undefined;
+
+    const handleUser = (authUser: { uid: string; email: string | null } | null) => {
+      if (unsubscribeDoc) {
+        unsubscribeDoc();
+        unsubscribeDoc = undefined;
+      }
+
+      if (!authUser) {
         setState({ user: null, role: null, loading: false });
         return;
       }
 
-      // Escucha el documento del usuario en Firestore en tiempo real
-      const userRef = doc(db, "users", user.uid);
-      const unsubscribeDoc = onSnapshot(
+      // Usamos el correo como ID del documento (como hace authService.ts)
+      const docId = authUser.email ? authUser.email.toLowerCase() : authUser.uid;
+      const userRef = doc(db, "users", docId);
+      
+      unsubscribeDoc = onSnapshot(
         userRef,
         (snapshot) => {
-          const role = (snapshot.data()?.role as UserRole) ?? null;
-          setState({ user, role, loading: false });
+          const role = (snapshot.data()?.role as UserRole) ?? "client";
+          setState({ user: authUser as User, role, loading: false });
         },
         (error) => {
           console.error("Error fetching user role from Firestore:", error);
-          // Si hay error de permisos (por reglas de Firestore), 
-          // asumimos un rol por defecto o nulo para no quedarnos en "Cargando..."
-          setState({ user, role: "client", loading: false });
+          setState({ user: authUser as User, role: "client", loading: false });
         }
       );
+    };
 
-      // Limpia el listener de Firestore cuando el usuario cambia
-      return () => unsubscribeDoc();
+    // Escucha cambios de sesión de Firebase Auth (Link Mágico)
+    const unsubscribeAuth = onAuthStateChanged(auth, (fbUser) => {
+      if (fbUser) {
+        handleUser(fbUser);
+      } else {
+        // Fallback: Si no hay Firebase Auth, comprobamos el OTP guardado localmente
+        const savedEmail = localStorage.getItem("auth_email");
+        if (savedEmail) {
+          // Simulamos un usuario donde el UID es su correo (para mantener compatibilidad)
+          handleUser({ uid: savedEmail.toLowerCase(), email: savedEmail.toLowerCase() });
+        } else {
+          handleUser(null);
+        }
+      }
     });
 
-    return () => unsubscribeAuth();
+    return () => {
+      unsubscribeAuth();
+      if (unsubscribeDoc) unsubscribeDoc();
+    };
   }, []);
 
   return state;

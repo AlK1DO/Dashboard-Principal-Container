@@ -114,6 +114,7 @@ export default function AdminDashboardPage() {
   }, []);
 
   const handleLogout = async () => {
+    localStorage.removeItem("auth_email");
     await signOut(auth);
     navigate("/login");
   };
