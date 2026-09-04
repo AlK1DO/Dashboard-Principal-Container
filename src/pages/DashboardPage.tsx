@@ -111,9 +111,11 @@ export default function DashboardPage() {
   useEffect(() => {
     if (!user) return;
 
+    // Usamos el correo en minúsculas para unificar la búsqueda sin importar cómo inició sesión
+    const searchId = user.email ? user.email.toLowerCase() : user.uid;
     const q = query(
       collection(db, "projects"),
-      where("authorizedUsers", "array-contains", user.uid)
+      where("authorizedUsers", "array-contains", searchId)
     );
 
     const unsubscribe = onSnapshot(
