@@ -117,10 +117,17 @@ export default function ClientDashboardPage() {
       where("authorizedUsers", "array-contains", user.uid)
     );
 
-    return onSnapshot(q, (snap) => {
-      setProjects(snap.docs.map((d) => ({ id: d.id, ...d.data() } as Project)));
-      setLoadingProjects(false);
-    });
+    return onSnapshot(
+      q,
+      (snap) => {
+        setProjects(snap.docs.map((d) => ({ id: d.id, ...d.data() } as Project)));
+        setLoadingProjects(false);
+      },
+      (error) => {
+        console.error("Error fetching projects:", error);
+        setLoadingProjects(false);
+      }
+    );
   }, [user]);
 
   const handleLogout = async () => {

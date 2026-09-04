@@ -116,14 +116,21 @@ export default function DashboardPage() {
       where("authorizedUsers", "array-contains", user.uid)
     );
 
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const data = snapshot.docs.map((doc) => ({
-        id: doc.id,
-        ...doc.data(),
-      })) as Project[];
-      setProjects(data);
-      setLoading(false);
-    });
+    const unsubscribe = onSnapshot(
+      q,
+      (snapshot) => {
+        const data = snapshot.docs.map((doc) => ({
+          id: doc.id,
+          ...doc.data(),
+        })) as Project[];
+        setProjects(data);
+        setLoading(false);
+      },
+      (error) => {
+        console.error("Error fetching projects:", error);
+        setLoading(false);
+      }
+    );
 
     return () => unsubscribe();
   }, [user]);
