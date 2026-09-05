@@ -3,10 +3,12 @@ import { doc, onSnapshot } from "firebase/firestore";
 import { db } from "@/config/firebase";
 
 export type UserRole = "admin" | "client" | null;
+export type UserStatus = "pending" | "approved" | "rejected" | null;
 
 interface AuthState {
   user: { uid: string; email: string | null; displayName?: string | null; emailVerified?: boolean } | null;
   role: UserRole;
+  status: UserStatus;
   loading: boolean;
 }
 
@@ -14,6 +16,7 @@ export function useAuth(): AuthState {
   const [state, setState] = useState<AuthState>({
     user: null,
     role: null,
+    status: null,
     loading: true,
   });
 
@@ -23,39 +26,39 @@ export function useAuth(): AuthState {
     const checkLocalSession = () => {
       const savedEmail = localStorage.getItem("auth_email");
       if (!savedEmail) {
-        setState({ user: null, role: null, loading: false });
+        setState({ user: null, role: null, status: null, loading: false });
         return;
       }
 
       const emailLower = savedEmail.toLowerCase();
       const userRef = doc(db, "users", emailLower);
-      
+
       unsubscribeDoc = onSnapshot(
         userRef,
         (snapshot) => {
-          const role = (snapshot.data()?.role as UserRole) ?? "client";
-          // We provide a fake user object matching the shape needed by components
+          const data = snapshot.data();
+          const role = ((data?.role as string)?.trim() as UserRole) ?? "client";
+          const status = ((data?.status as string)?.trim() as UserStatus) ?? "pending";
           const authMethod = localStorage.getItem("auth_method");
-          const authUser = { 
-            uid: emailLower, 
-            email: emailLower, 
-            displayName: snapshot.data()?.displayName,
-            emailVerified: authMethod === "link" 
+          const authUser = {
+            uid: emailLower,
+            email: emailLower,
+            displayName: data?.displayName,
+            emailVerified: authMethod === "link",
           };
-          setState({ user: authUser, role, loading: false });
+          setState({ user: authUser, role, status, loading: false });
         },
         (error) => {
-          console.error("Error fetching user role from Firestore:", error);
+          console.error("Error fetching user from Firestore:", error);
           const authMethod = localStorage.getItem("auth_method");
           const authUser = { uid: emailLower, email: emailLower, emailVerified: authMethod === "link" };
-          setState({ user: authUser, role: "client", loading: false });
+          setState({ user: authUser, role: "client", status: "pending", loading: false });
         }
       );
     };
 
     checkLocalSession();
 
-    // Re-check when storage changes in other tabs
     const handleStorageChange = (e: StorageEvent) => {
       if (e.key === "auth_email") {
         if (unsubscribeDoc) {

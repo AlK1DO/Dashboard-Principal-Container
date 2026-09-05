@@ -7,8 +7,9 @@ interface ProtectedRouteProps {
 }
 
 /**
- * Protege una ruta por rol.
+ * Protege una ruta por rol y estado de aprobación.
  * - Sin sesión        → /login
+ * - Status pending    → /pending-approval
  * - Rol incorrecto    → redirige al dashboard del rol real
  * - Cargando          → pantalla de espera
  */
@@ -16,7 +17,7 @@ export default function ProtectedRoute({
   children,
   allowedRole,
 }: ProtectedRouteProps) {
-  const { user, role, loading } = useAuth();
+  const { user, role, status, loading } = useAuth();
 
   if (loading) {
     return (
@@ -26,9 +27,14 @@ export default function ProtectedRoute({
     );
   }
 
-  // Sin sesión → al login (lo maneja el compañero)
+  // Sin sesión → al login
   if (!user) {
     return <Navigate to="/login" replace />;
+  }
+
+  // Usuario pendiente o suspendido (solo clientes, los admin siempre pasan)
+  if (role !== "admin" && (status === "pending" || status === "suspended")) {
+    return <Navigate to="/pending-approval" replace />;
   }
 
   // Rol correcto → renderiza la página

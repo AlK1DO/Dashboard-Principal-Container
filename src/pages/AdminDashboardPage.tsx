@@ -9,6 +9,9 @@ import {
   Plus,
   Trash2,
   UserCheck,
+  ShieldCheck,
+  ShieldOff,
+  UserX,
 } from "lucide-react";
 import { Sidebar, SidebarBody, SidebarLink, type SidebarLinkItem } from "@/components/ui/sidebar";
 import { type Project } from "@/data/projects";
@@ -33,6 +36,7 @@ interface AppUser {
   email: string;
   displayName: string;
   role: "admin" | "client";
+  status: "pending" | "approved" | "suspended" | "rejected";
 }
 
 // ── Logo ──────────────────────────────────────────────────────────────────────
@@ -149,6 +153,22 @@ export default function AdminDashboardPage() {
   const handleToggleRole = async (userId: string, currentRole: string) => {
     const newRole = currentRole === "admin" ? "client" : "admin";
     await updateDoc(doc(db, "users", userId), { role: newRole });
+  };
+
+  // ── Usuarios: verificar, suspender, expulsar ─────────────────────────────
+
+  const handleVerifyUser = async (userId: string) => {
+    await updateDoc(doc(db, "users", userId), { status: "approved" });
+  };
+
+  const handleSuspendUser = async (userId: string, currentStatus: string) => {
+    const newStatus = currentStatus === "suspended" ? "approved" : "suspended";
+    await updateDoc(doc(db, "users", userId), { status: newStatus });
+  };
+
+  const handleDeleteUser = async (userId: string) => {
+    if (!confirm("¿Seguro que deseas expulsar este usuario? Esta acción no se puede deshacer.")) return;
+    await deleteDoc(doc(db, "users", userId));
   };
 
   // ── Nav links ─────────────────────────────────────────────────────────────
@@ -379,11 +399,25 @@ export default function AdminDashboardPage() {
                   {users.map((u) => (
                     <div
                       key={u.id}
-                      className="bg-white dark:bg-neutral-800 rounded-2xl border border-neutral-200 dark:border-neutral-700 px-5 py-4 flex items-center justify-between gap-4"
+                      className={cn(
+                        "bg-white dark:bg-neutral-800 rounded-2xl border px-5 py-4 flex items-center justify-between gap-4",
+                        u.status === "suspended"
+                          ? "border-red-200 dark:border-red-900/50 bg-red-50/50 dark:bg-red-950/10"
+                          : "border-neutral-200 dark:border-neutral-700"
+                      )}
                     >
+                      {/* Info usuario */}
                       <div className="flex items-center gap-3 min-w-0">
-                        <div className="h-9 w-9 rounded-full bg-neutral-200 dark:bg-neutral-700 flex items-center justify-center flex-shrink-0">
-                          <Users className="h-4 w-4 text-neutral-500" />
+                        <div className={cn(
+                          "h-9 w-9 rounded-full flex items-center justify-center flex-shrink-0",
+                          u.status === "suspended"
+                            ? "bg-red-100 dark:bg-red-900/30"
+                            : "bg-neutral-200 dark:bg-neutral-700"
+                        )}>
+                          <Users className={cn(
+                            "h-4 w-4",
+                            u.status === "suspended" ? "text-red-400" : "text-neutral-500"
+                          )} />
                         </div>
                         <div className="min-w-0">
                           <p className="font-medium text-neutral-900 dark:text-white text-sm truncate">
@@ -394,17 +428,66 @@ export default function AdminDashboardPage() {
                           </p>
                         </div>
                       </div>
-                      <div className="flex items-center gap-3 flex-shrink-0">
-                        <span
-                          className={cn(
-                            "px-2.5 py-0.5 rounded-full text-xs font-medium",
-                            u.role === "admin"
-                              ? "bg-violet-100 dark:bg-violet-950/40 text-violet-700 dark:text-violet-300"
-                              : "bg-blue-100 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300"
-                          )}
-                        >
-                          {u.role === "admin" ? "Admin" : "Cliente"}
+
+                      {/* Badges y acciones */}
+                      <div className="flex items-center gap-2 flex-shrink-0 flex-wrap justify-end">
+
+                        {/* Badge rol */}
+                        <span className={cn(
+                          "px-2.5 py-0.5 rounded-full text-xs font-medium",
+                          u.role === "admin"
+                            ? "bg-violet-100 dark:bg-violet-950/40 text-violet-700 dark:text-violet-300"
+                            : "bg-blue-100 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300"
+                        )}>
+                          {u.role === "admin" ? "Admin" : "Usuario"}
                         </span>
+
+                        {/* Badge status */}
+                        <span className={cn(
+                          "px-2.5 py-0.5 rounded-full text-xs font-medium",
+                          u.status === "approved"  && "bg-green-100 dark:bg-green-950/40 text-green-700 dark:text-green-300",
+                          u.status === "pending"   && "bg-amber-100 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300",
+                          u.status === "suspended" && "bg-red-100 dark:bg-red-950/40 text-red-700 dark:text-red-300",
+                          u.status === "rejected"  && "bg-neutral-100 dark:bg-neutral-700 text-neutral-500 dark:text-neutral-400",
+                          !u.status               && "bg-amber-100 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300",
+                        )}>
+                          {u.status === "approved"  && "Verificado"}
+                          {u.status === "pending"   && "Pendiente"}
+                          {u.status === "suspended" && "Suspendido"}
+                          {u.status === "rejected"  && "Rechazado"}
+                          {!u.status               && "Pendiente"}
+                        </span>
+
+                        {/* Botón verificar (solo si está pendiente, no suspendido ni admin) */}
+                        {u.status === "pending" && u.role !== "admin" && (
+                          <button
+                            onClick={() => handleVerifyUser(u.id)}
+                            title="Verificar cuenta"
+                            className="flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg border border-green-200 dark:border-green-800 text-green-700 dark:text-green-400 hover:bg-green-50 dark:hover:bg-green-950/30 transition-colors"
+                          >
+                            <ShieldCheck className="h-3.5 w-3.5" />
+                            Verificar
+                          </button>
+                        )}
+
+                        {/* Botón suspender/reactivar (no aplica a admins) */}
+                        {u.role !== "admin" && (
+                          <button
+                            onClick={() => handleSuspendUser(u.id, u.status ?? "approved")}
+                            title={u.status === "suspended" ? "Reactivar cuenta" : "Suspender cuenta"}
+                            className={cn(
+                              "flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg border transition-colors",
+                              u.status === "suspended"
+                                ? "border-green-200 dark:border-green-800 text-green-700 dark:text-green-400 hover:bg-green-50 dark:hover:bg-green-950/30"
+                                : "border-amber-200 dark:border-amber-800 text-amber-700 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950/30"
+                            )}
+                          >
+                            <ShieldOff className="h-3.5 w-3.5" />
+                            {u.status === "suspended" ? "Reactivar" : "Suspender"}
+                          </button>
+                        )}
+
+                        {/* Botón cambiar rol */}
                         <button
                           onClick={() => handleToggleRole(u.id, u.role)}
                           className="flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg border border-neutral-200 dark:border-neutral-600 text-neutral-600 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-700 transition-colors"
@@ -412,6 +495,18 @@ export default function AdminDashboardPage() {
                           <UserCheck className="h-3.5 w-3.5" />
                           Cambiar rol
                         </button>
+
+                        {/* Botón expulsar (no aplica al propio admin) */}
+                        {u.role !== "admin" && (
+                          <button
+                            onClick={() => handleDeleteUser(u.id)}
+                            title="Expulsar usuario"
+                            className="flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg border border-red-200 dark:border-red-800 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/30 transition-colors"
+                          >
+                            <UserX className="h-3.5 w-3.5" />
+                            Expulsar
+                          </button>
+                        )}
                       </div>
                     </div>
                   ))}
