@@ -6,7 +6,7 @@ interface AuthContextType {
   user: UserProfile | null;
   isAuthenticated: boolean;
   isLoading: boolean;
-  login: (email: string) => Promise<void>;
+  login: (email: string, method: "otp" | "link") => Promise<void>;
   logout: () => void;
   checkStatus: () => Promise<void>;
 }
@@ -49,15 +49,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return () => window.removeEventListener("storage", handleStorageChange);
   }, []);
 
-  const login = async (email: string) => {
+  const login = async (email: string, method: "otp" | "link") => {
     const profile = await getOrCreateUser(email);
     setUser(profile);
     localStorage.setItem("auth_email", email.toLowerCase());
+    localStorage.setItem("auth_method", method);
   };
 
   const logout = () => {
     setUser(null);
     localStorage.removeItem("auth_email");
+    localStorage.removeItem("auth_method");
+    window.dispatchEvent(new Event("storage"));
   };
 
   const checkStatus = async () => {

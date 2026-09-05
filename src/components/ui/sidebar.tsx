@@ -138,7 +138,7 @@ export const SidebarLink = ({
 }: {
   link: SidebarLinkItem;
   className?: string;
-  onClick?: () => void;
+  onClick?: (e: React.MouseEvent) => void;
 }) => {
   const { open, animate } = useSidebar();
   return (

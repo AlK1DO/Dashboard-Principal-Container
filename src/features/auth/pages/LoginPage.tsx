@@ -4,8 +4,6 @@ import * as React from "react"
 import { CheckCircle, RefreshCw, Mail, Link as LinkIcon } from "lucide-react"
 import { motion, AnimatePresence } from "motion/react"
 import { useNavigate, useLocation } from "react-router-dom"
-import { isSignInWithEmailLink, signInWithEmailLink, sendSignInLinkToEmail } from "firebase/auth"
-import { auth } from "@/config/firebase"
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -19,7 +17,7 @@ import {
 
 import { AnimatedOTPInput } from "@/components/ui/otp-input"
 import { useAuth } from "../context/AuthContext"
-import { generateOTP, sendOTPEmail } from "../services/emailService"
+import { generateOTP, sendOTPEmail, sendMagicLinkEmail } from "../services/emailService"
 
 export default function LoginPage() {
   const [step, setStep] = React.useState<"email" | "otp" | "link_sent">("email")
@@ -37,51 +35,40 @@ export default function LoginPage() {
   
   const from = location.state?.from?.pathname || "/"
 
-  // Redirect if already authenticated (e.g. from another tab)
+  // Redirect if already authenticated
   React.useEffect(() => {
     if (isAuthenticated) {
       navigate(from, { replace: true })
     }
   }, [isAuthenticated, navigate, from])
 
-  const isAuthenticating = React.useRef(false)
-
-  // Handle incoming Firebase Email Link
+  // Capturar el Magic Link al cargar la página
   React.useEffect(() => {
-    if (isSignInWithEmailLink(auth, window.location.href)) {
-      if (isAuthenticating.current) return
-      isAuthenticating.current = true
-      
-      setIsLoading(true)
-      let emailForSignIn = window.localStorage.getItem("emailForSignIn")
-      
-      if (!emailForSignIn) {
-        // Firebase requires the email to complete sign in. 
-        // It's only missing if the user opens the link in a different browser/device.
-        emailForSignIn = window.prompt("Por seguridad, ingresa el correo que usaste para pedir el link:")
-      }
-
-      if (emailForSignIn) {
-        signInWithEmailLink(auth, emailForSignIn, window.location.href)
-          .then(async () => {
-            window.localStorage.removeItem("emailForSignIn")
-            setIsSuccess(true)
-            await login(emailForSignIn!)
-            setTimeout(() => {
-              navigate(from, { replace: true })
-            }, 1000)
-          })
-          .catch((err) => {
-            console.error("Error validando el link:", err)
-            setError("El link es inválido o ya fue usado.")
-            setIsLoading(false)
-          })
-      } else {
-        setIsLoading(false)
-        isAuthenticating.current = false
+    const params = new URLSearchParams(window.location.search);
+    const magic = params.get("magic");
+    
+    if (magic) {
+      setIsLoading(true);
+      try {
+        const decodedEmail = atob(magic);
+        login(decodedEmail, "link").then(() => {
+          setIsSuccess(true);
+          // Limpiar la URL
+          window.history.replaceState({}, document.title, window.location.pathname);
+          setTimeout(() => {
+            navigate(from, { replace: true });
+          }, 1000);
+        }).catch(err => {
+          console.error(err);
+          setError("Error al iniciar sesión con el link.");
+          setIsLoading(false);
+        });
+      } catch (e) {
+        setError("El link es inválido.");
+        setIsLoading(false);
       }
     }
-  }, [navigate, from, login])
+  }, [login, navigate, from]);
 
   const validateEmail = () => {
     if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
@@ -112,16 +99,15 @@ export default function LoginPage() {
     if (!validateEmail()) return
     setIsLoading(true)
     try {
-      const actionCodeSettings = {
-        url: window.location.origin + "/login",
-        handleCodeInApp: true,
-      }
-      await sendSignInLinkToEmail(auth, email, actionCodeSettings)
-      window.localStorage.setItem("emailForSignIn", email)
+      // Creamos un link simple codificando el email en base64
+      const token = btoa(email);
+      const magicLink = `${window.location.origin}/login?magic=${token}`;
+      
+      await sendMagicLinkEmail(email, magicLink);
       setStep("link_sent")
     } catch (err: any) {
       console.error(err)
-      setError(err.message || "Error al enviar el link. Revisa la configuración de Firebase.")
+      setError("Error al enviar el link.")
     } finally {
       setIsLoading(false)
     }
@@ -137,13 +123,13 @@ export default function LoginPage() {
     if (otp === expectedOTP) {
       setIsSuccess(true)
       try {
-        await login(email)
+        await login(email, "otp")
         setTimeout(() => {
           navigate(from, { replace: true })
         }, 1000)
       } catch (err: any) {
         console.error("Login error:", err)
-        setError(`Error al iniciar sesión: ${err.message || "Error de base de datos (Firebase)"}`)
+        setError(`Error al iniciar sesión: ${err.message || "Error de base de datos"}`)
         setIsSuccess(false)
       }
     } else {
@@ -302,10 +288,10 @@ export default function LoginPage() {
                   <Mail className="h-8 w-8 text-green-600" />
                 </div>
                 <p className="text-center text-sm text-slate-600">
-                  Puedes cerrar esta ventana o regresar si te equivocaste de correo.
+                  Hemos enviado un enlace a tu correo. Ábrelo para iniciar sesión.
                 </p>
                 <Button variant="ghost" onClick={handleReset}>
-                  Cambiar correo
+                  Volver
                 </Button>
               </motion.div>
             )}

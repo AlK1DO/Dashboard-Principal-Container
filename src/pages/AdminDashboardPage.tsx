@@ -13,8 +13,8 @@ import {
 import { Sidebar, SidebarBody, SidebarLink, type SidebarLinkItem } from "@/components/ui/sidebar";
 import { type Project } from "@/data/projects";
 import { cn } from "@/lib/utils";
-import { auth, db } from "@/config/firebase";
-import { signOut } from "firebase/auth";
+import { db } from "@/config/firebase";
+import { useAuth as useLocalAuth } from "@/features/auth/context/AuthContext";
 import {
   collection,
   onSnapshot,
@@ -113,9 +113,11 @@ export default function AdminDashboardPage() {
     );
   }, []);
 
-  const handleLogout = async () => {
-    localStorage.removeItem("auth_email");
-    await signOut(auth);
+  const { logout: localLogout } = useLocalAuth();
+
+  const handleLogout = async (e?: React.MouseEvent) => {
+    if (e) e.preventDefault();
+    localLogout(); // Limpia AuthContext y localStorage
     navigate("/login");
   };
 

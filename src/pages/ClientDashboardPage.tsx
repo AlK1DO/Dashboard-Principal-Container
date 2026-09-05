@@ -5,10 +5,10 @@ import { LayoutDashboard, UserCog, LogOut, ExternalLink, FolderOpen } from "luci
 import { Sidebar, SidebarBody, SidebarLink, type SidebarLinkItem } from "@/components/ui/sidebar";
 import { type Project } from "@/data/projects";
 import { cn } from "@/lib/utils";
-import { auth, db } from "@/config/firebase";
-import { signOut } from "firebase/auth";
+import { db } from "@/config/firebase";
 import { collection, query, where, onSnapshot } from "firebase/firestore";
 import { useAuth } from "@/hooks/useAuth";
+import { useAuth as useLocalAuth } from "@/features/auth/context/AuthContext";
 
 // ── Logo ─────────────────────────────────────────────────────────────────────
 
@@ -107,6 +107,7 @@ export default function ClientDashboardPage() {
   const navigate = useNavigate();
 
   const { user } = useAuth();
+  const { logout: localLogout } = useLocalAuth();
 
   // Proyectos donde el uid del cliente está autorizado
   useEffect(() => {
@@ -132,9 +133,9 @@ export default function ClientDashboardPage() {
     );
   }, [user]);
 
-  const handleLogout = async () => {
-    localStorage.removeItem("auth_email");
-    await signOut(auth);
+  const handleLogout = async (e?: React.MouseEvent) => {
+    if (e) e.preventDefault();
+    localLogout(); // Limpia AuthContext y localStorage
     navigate("/login");
   };
 

@@ -5,9 +5,10 @@ import { LayoutDashboard, UserCog, LogOut, ExternalLink, FolderOpen } from "luci
 import { Sidebar, SidebarBody, SidebarLink, type SidebarLinkItem } from "@/components/ui/sidebar";
 import { type Project } from "@/data/projects";
 import { cn } from "@/lib/utils";
-import { auth, db } from "@/config/firebase";
-import { signOut } from "firebase/auth";
+import { db } from "@/config/firebase";
 import { collection, query, where, onSnapshot } from "firebase/firestore";
+import { useAuth } from "@/hooks/useAuth";
+import { useAuth as useLocalAuth } from "@/features/auth/context/AuthContext";
 
 // ── Logo ─────────────────────────────────────────────────────────────────────
 
@@ -105,7 +106,8 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
 
-  const user = auth.currentUser;
+  const { user } = useAuth();
+  const { logout: localLogout } = useLocalAuth();
 
   // Carga proyectos autorizados desde Firestore en tiempo real
   useEffect(() => {
@@ -138,7 +140,7 @@ export default function DashboardPage() {
   }, [user]);
 
   const handleLogout = async () => {
-    await signOut(auth);
+    localLogout();
     navigate("/");
   };
 
