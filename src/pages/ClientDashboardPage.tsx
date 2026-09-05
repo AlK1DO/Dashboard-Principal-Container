@@ -1,14 +1,23 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
-import { LayoutDashboard, UserCog, LogOut, ExternalLink, FolderOpen } from "lucide-react";
+import {
+  ExternalLink,
+  FolderOpen,
+  GitBranch,
+  Info,
+  LayoutDashboard,
+  Link,
+  LogOut,
+  UserCog,
+} from "lucide-react";
 import { Sidebar, SidebarBody, SidebarLink, type SidebarLinkItem } from "@/components/ui/sidebar";
 import { type Project } from "@/data/projects";
 import { cn } from "@/lib/utils";
-import { db } from "@/config/firebase";
+import { auth, db } from "@/config/firebase";
+import { signOut } from "firebase/auth";
 import { collection, query, where, onSnapshot } from "firebase/firestore";
 import { useAuth } from "@/hooks/useAuth";
-import { useAuth as useLocalAuth } from "@/features/auth/context/AuthContext";
 
 // ── Logo ─────────────────────────────────────────────────────────────────────
 
@@ -27,66 +36,76 @@ const SidebarLogo = ({ expanded }: { expanded: boolean }) => (
   </div>
 );
 
-// ── Project Card ─────────────────────────────────────────────────────────────
+// ── Project Tile ─────────────────────────────────────────────────────────────
 
-const ProjectCard = ({ name, description, image, url, tech }: Project) => (
-  <div className="bg-white dark:bg-neutral-800 rounded-2xl border border-neutral-200 dark:border-neutral-700 overflow-hidden shadow-sm hover:shadow-md transition-shadow flex flex-col">
-    {image ? (
-      <div className="h-40 overflow-hidden">
-        <img
-          src={image}
-          alt={name}
-          className="w-full h-full object-cover hover:scale-105 transition-transform duration-300"
-        />
+const ProjectTile = ({ project, onOpen }: { project: Project; onOpen: (project: Project) => void }) => {
+  const openExternal = (url: string) => {
+    window.open(url, "_blank", "noopener,noreferrer");
+  };
+
+  return (
+    <article className="group flex min-h-[300px] flex-col overflow-hidden rounded-2xl border border-neutral-200 bg-white p-4 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:border-neutral-400 hover:shadow-md dark:border-neutral-700 dark:bg-neutral-800">
+      <div className="flex items-start justify-between gap-2">
+        <div className="flex h-11 w-11 items-center justify-center overflow-hidden rounded-xl bg-neutral-100 dark:bg-neutral-700">
+          {project.icon ? (
+            <img src={project.icon} alt={project.name} className="h-full w-full object-cover" />
+          ) : (
+            <FolderOpen className="h-5 w-5 text-neutral-500" />
+          )}
+        </div>
+
+        <span
+          className={cn(
+            "rounded-full px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide",
+            project.activo
+              ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300"
+              : "bg-neutral-200 text-neutral-600 dark:bg-neutral-700 dark:text-neutral-300"
+          )}
+        >
+          {project.activo ? "Activo" : "Inactivo"}
+        </span>
       </div>
-    ) : (
-      <div className="h-40 bg-neutral-100 dark:bg-neutral-700 flex items-center justify-center">
-        <FolderOpen className="h-10 w-10 text-neutral-400" />
-      </div>
-    )}
 
-    <div className="p-4 flex flex-col flex-1 gap-3">
-      <h3 className="font-semibold text-neutral-900 dark:text-white text-base leading-tight">
-        {name}
-      </h3>
-
-      {description && (
-        <p className="text-neutral-500 dark:text-neutral-400 text-sm leading-relaxed flex-1">
-          {description}
+      <button type="button" onClick={() => onOpen(project)} className="mt-6 min-w-0 text-left">
+        <h3 className="truncate text-base font-semibold text-neutral-900 dark:text-white">
+          {project.name}
+        </h3>
+        <p className="mt-2 line-clamp-3 text-xs leading-relaxed text-neutral-500 dark:text-neutral-400">
+          {project.description || "Proyecto sin descripción"}
         </p>
-      )}
-
-      {tech?.length > 0 && (
-        <div className="flex flex-wrap gap-1.5">
-          {tech.map((t) => (
-            <span
-              key={t}
-              className="px-2 py-0.5 bg-neutral-100 dark:bg-neutral-700 text-neutral-600 dark:text-neutral-300 text-xs rounded-full"
-            >
-              {t}
+        <div className="mt-3 flex flex-wrap gap-1.5">
+          {project.tech?.slice(0, 3).map((technology) => (
+            <span key={technology} className="rounded-full bg-neutral-100 px-2 py-1 text-[10px] text-neutral-600 dark:bg-neutral-700 dark:text-neutral-300">
+              {technology}
             </span>
           ))}
+          <span className="rounded-full bg-neutral-100 px-2 py-1 text-[10px] text-neutral-600 dark:bg-neutral-700 dark:text-neutral-300">
+            {project.path || "Sin ruta"}
+          </span>
         </div>
-      )}
+      </button>
 
-      <a
-        href={url || "#"}
-        target={url ? "_blank" : undefined}
-        rel="noopener noreferrer"
-        aria-disabled={!url}
-        className={cn(
-          "mt-1 flex items-center justify-center gap-2 w-full py-2 px-4 text-sm font-medium rounded-xl transition-colors",
-          url
-            ? "bg-neutral-900 dark:bg-white text-white dark:text-neutral-900 hover:bg-neutral-700 dark:hover:bg-neutral-200"
-            : "bg-neutral-200 dark:bg-neutral-700 text-neutral-400 cursor-not-allowed pointer-events-none"
-        )}
-      >
-        <ExternalLink className="h-4 w-4" />
-        {url ? "Abrir proyecto" : "Sin enlace"}
-      </a>
-    </div>
-  </div>
-);
+      <div className="mt-auto flex items-center justify-between border-t border-neutral-100 pt-4 text-neutral-400 dark:border-neutral-700">
+        <div className="flex items-center gap-4">
+          <button type="button" onClick={() => openExternal(project.vercelUrl || project.url || project.path)} disabled={!project.vercelUrl && !project.url && !project.path} aria-label="Abrir proyecto" className="transition-colors hover:text-neutral-900 disabled:cursor-not-allowed disabled:opacity-40 dark:hover:text-white">
+            <ExternalLink className="h-4 w-4" />
+          </button>
+          <button type="button" onClick={() => openExternal(project.repository)} disabled={!project.repository} aria-label="Abrir repositorio" className="transition-colors hover:text-neutral-900 disabled:cursor-not-allowed disabled:opacity-40 dark:hover:text-white">
+            <GitBranch className="h-4 w-4" />
+          </button>
+        </div>
+        <div className="flex items-center gap-4">
+          <button type="button" onClick={() => onOpen(project)} aria-label="Abrir proyecto dentro del dashboard" className="transition-colors hover:text-neutral-900 dark:hover:text-white">
+            <Link className="h-4 w-4" />
+          </button>
+          <button type="button" onClick={() => onOpen(project)} aria-label="Ver detalles del proyecto" className="transition-colors hover:text-neutral-900 dark:hover:text-white">
+            <Info className="h-4 w-4" />
+          </button>
+        </div>
+      </div>
+    </article>
+  );
+};
 
 // ── Nav config ────────────────────────────────────────────────────────────────
 
@@ -104,20 +123,16 @@ export default function ClientDashboardPage() {
   const [activeSection, setActiveSection] = useState<Section>("dashboard");
   const [projects, setProjects] = useState<Project[]>([]);
   const [loadingProjects, setLoadingProjects] = useState(true);
+  const [selectedProject, setSelectedProject] = useState<Project | null>(null);
   const navigate = useNavigate();
 
   const { user } = useAuth();
-  const { logout: localLogout } = useLocalAuth();
 
-  // Proyectos donde el uid del cliente está autorizado
+  // Los proyectos activos publicados por administración aparecen para los usuarios.
   useEffect(() => {
-    if (!user) return;
-
-    // Usamos el correo en minúsculas para unificar la búsqueda sin importar cómo inició sesión
-    const searchId = user.email ? user.email.toLowerCase() : user.uid;
     const q = query(
       collection(db, "projects"),
-      where("authorizedUsers", "array-contains", searchId)
+      where("activo", "==", true)
     );
 
     return onSnapshot(
@@ -133,9 +148,9 @@ export default function ClientDashboardPage() {
     );
   }, [user]);
 
-  const handleLogout = async (e?: React.MouseEvent) => {
-    if (e) e.preventDefault();
-    localLogout(); // Limpia AuthContext y localStorage
+  const handleLogout = async () => {
+    localStorage.removeItem("auth_email");
+    await signOut(auth);
     navigate("/login");
   };
 
@@ -234,15 +249,15 @@ export default function ClientDashboardPage() {
               )}
 
               {!loadingProjects && projects.length > 0 && (
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+                <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 xl:grid-cols-4">
                   {projects.map((project, idx) => (
                     <motion.div
                       key={project.id}
                       initial={{ opacity: 0, y: 20 }}
                       animate={{ opacity: 1, y: 0 }}
-                      transition={{ delay: idx * 0.07 }}
+                      transition={{ delay: idx * 0.05 }}
                     >
-                      <ProjectCard {...project} />
+                      <ProjectTile project={project} onOpen={setSelectedProject} />
                     </motion.div>
                   ))}
                 </div>
@@ -298,6 +313,39 @@ export default function ClientDashboardPage() {
           )}
         </main>
       </div>
+
+      {selectedProject && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-6xl overflow-hidden rounded-2xl border border-neutral-700 bg-neutral-900 shadow-2xl">
+            <div className="flex items-center justify-between border-b border-neutral-700 px-4 py-3">
+              <div>
+                <h3 className="text-lg font-semibold text-white">{selectedProject.name}</h3>
+                <p className="text-xs text-neutral-400">{selectedProject.path}</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSelectedProject(null)}
+                className="rounded-lg border border-neutral-700 bg-neutral-800 px-3 py-1.5 text-sm text-neutral-200 hover:bg-neutral-700"
+              >
+                Cerrar
+              </button>
+            </div>
+
+            {selectedProject.vercelUrl ? (
+              <iframe
+                src={selectedProject.vercelUrl}
+                title={selectedProject.name}
+                className="h-[72vh] w-full bg-white"
+                loading="lazy"
+              />
+            ) : (
+              <div className="flex h-[72vh] items-center justify-center bg-neutral-950 p-6 text-center text-neutral-300">
+                Este proyecto no tiene una URL disponible para abrir dentro de la página.
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

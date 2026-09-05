@@ -3,7 +3,7 @@ import { doc, onSnapshot } from "firebase/firestore";
 import { db } from "@/config/firebase";
 
 export type UserRole = "admin" | "client" | null;
-export type UserStatus = "pending" | "approved" | "rejected" | null;
+export type UserStatus = "pending" | "approved" | "rejected" | "suspended" | null;
 
 interface AuthState {
   user: { uid: string; email: string | null; displayName?: string | null; emailVerified?: boolean } | null;
