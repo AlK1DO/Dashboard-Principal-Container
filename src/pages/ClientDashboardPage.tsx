@@ -128,17 +128,26 @@ export default function ClientDashboardPage() {
 
   const { user } = useAuth();
 
-  // Los proyectos activos publicados por administración aparecen para los usuarios.
+  // Proyectos activos visibles para el usuario:
+  // - Si authorizedUsers está vacío → visible para todos los clientes.
+  // - Si authorizedUsers tiene correos → solo esas personas lo ven.
   useEffect(() => {
     const q = query(
       collection(db, "projects"),
       where("activo", "==", true)
     );
 
+    const emailLower = user?.email?.toLowerCase() ?? "";
+
     return onSnapshot(
       q,
       (snap) => {
-        setProjects(snap.docs.map((d) => ({ id: d.id, ...d.data() } as Project)));
+        const all = snap.docs.map((d) => ({ id: d.id, ...d.data() } as Project));
+        const visible = all.filter((p) => {
+          const authorized = p.authorizedUsers ?? [];
+          return authorized.length === 0 || authorized.includes(emailLower);
+        });
+        setProjects(visible);
         setLoadingProjects(false);
       },
       (error) => {
@@ -146,7 +155,7 @@ export default function ClientDashboardPage() {
         setLoadingProjects(false);
       }
     );
-  }, [user]);
+  }, [user?.email]);
 
   const handleLogout = async () => {
     localStorage.removeItem("auth_email");

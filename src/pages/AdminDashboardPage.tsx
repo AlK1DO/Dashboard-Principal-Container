@@ -9,8 +9,10 @@ import {
   ShieldCheck,
   Ban,
   UserX,
+  AlertTriangle,
 } from "lucide-react";
 import { Sidebar, SidebarBody, SidebarLink, type SidebarLinkItem } from "@/components/ui/sidebar";
+import Modal from "@/components/ui/Modal";
 import { cn } from "@/lib/utils";
 import { auth, db } from "@/config/firebase";
 import ProjectsModal from "@/components/ui/ProjectsModal";
@@ -25,6 +27,12 @@ interface AppUser {
   displayName: string;
   role: "admin" | "client";
   status?: "pending" | "approved" | "rejected" | "suspended";
+}
+
+interface ConfirmDialog {
+  title: string;
+  message: string;
+  onConfirm: () => Promise<void>;
 }
 
 // ── Logo ──────────────────────────────────────────────────────────────────────
@@ -64,6 +72,10 @@ export default function AdminDashboardPage() {
   const [users, setUsers] = useState<AppUser[]>([]);
   const [loadingUsers, setLoadingUsers] = useState(true);
 
+  // Diálogo de confirmación genérico
+  const [confirmDialog, setConfirmDialog] = useState<ConfirmDialog | null>(null);
+  const [confirming, setConfirming] = useState(false);
+
   // Carga todos los usuarios
   useEffect(() => {
     const q = query(collection(db, "users"), orderBy("email"));
@@ -101,7 +113,35 @@ export default function AdminDashboardPage() {
     await deleteDoc(doc(db, "users", userId));
   };
 
-  // ── Nav links ─────────────────────────────────────────────────────────────
+  // ── Confirmaciones ───────────────────────────────────────────────────────
+
+  const confirmToggleRole = (u: AppUser) => {
+    const newRole = u.role === "admin" ? "cliente" : "admin";
+    setConfirmDialog({
+      title: "Cambiar rol",
+      message: `¿Cambiar el rol de ${u.displayName || u.email} a ${newRole}?`,
+      onConfirm: () => handleToggleRole(u.id, u.role),
+    });
+  };
+
+  const confirmDeleteUser = (u: AppUser) => {
+    setConfirmDialog({
+      title: "Expulsar usuario",
+      message: `¿Estás seguro de que quieres expulsar a ${u.displayName || u.email}? Esta acción no se puede deshacer.`,
+      onConfirm: () => handleDeleteUser(u.id),
+    });
+  };
+
+  const runConfirm = async () => {
+    if (!confirmDialog) return;
+    setConfirming(true);
+    try {
+      await confirmDialog.onConfirm();
+      setConfirmDialog(null);
+    } finally {
+      setConfirming(false);
+    }
+  };
 
   const navLinks: (SidebarLinkItem & { section: Section })[] = NAV_ITEMS.map(
     ({ section, label, Icon }) => ({
@@ -256,7 +296,7 @@ export default function AdminDashboardPage() {
                         )}
                         <button
                           type="button"
-                          onClick={() => handleToggleRole(u.id, u.role)}
+                          onClick={() => confirmToggleRole(u)}
                           className="flex items-center gap-1.5 rounded-lg border border-neutral-200 px-3 py-1.5 text-xs text-neutral-600 transition-colors hover:bg-neutral-100 dark:border-neutral-600 dark:text-neutral-300 dark:hover:bg-neutral-700"
                         >
                           <UserCheck className="h-3.5 w-3.5" />
@@ -265,7 +305,7 @@ export default function AdminDashboardPage() {
                         {u.role !== "admin" && (
                           <button
                             type="button"
-                            onClick={() => void handleDeleteUser(u.id)}
+                            onClick={() => confirmDeleteUser(u)}
                             className="flex items-center gap-1.5 rounded-lg border border-red-300 px-3 py-1.5 text-xs text-red-600 transition-colors hover:bg-red-50 dark:border-red-700 dark:text-red-300 dark:hover:bg-red-950/30"
                           >
                             <UserX className="h-3.5 w-3.5" />
@@ -281,6 +321,24 @@ export default function AdminDashboardPage() {
           )}
         </main>
       </div>
+
+      {/* Modal: Confirmar acción destructiva */}
+      <Modal isOpen={!!confirmDialog} onClose={() => setConfirmDialog(null)} title={confirmDialog?.title ?? ""} className="max-w-md">
+        <div className="flex flex-col gap-4 p-5 sm:p-7">
+          <div className="flex items-start gap-3">
+            <AlertTriangle className="mt-0.5 h-5 w-5 flex-shrink-0 text-amber-500" />
+            <p className="text-sm text-neutral-600 dark:text-neutral-300">{confirmDialog?.message}</p>
+          </div>
+          <div className="flex justify-end gap-2 border-t border-neutral-200 pt-4 dark:border-neutral-700">
+            <button type="button" onClick={() => setConfirmDialog(null)} className="rounded-lg border border-neutral-200 px-4 py-2 text-sm font-medium text-neutral-700 hover:bg-neutral-50 dark:border-neutral-600 dark:text-neutral-300 dark:hover:bg-neutral-800">
+              Cancelar
+            </button>
+            <button type="button" onClick={() => void runConfirm()} disabled={confirming} className="rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700 disabled:opacity-60">
+              {confirming ? "Procesando..." : "Confirmar"}
+            </button>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 }

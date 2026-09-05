@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { addDoc, collection, doc, getDoc, onSnapshot, orderBy, query, serverTimestamp, setDoc, updateDoc } from "firebase/firestore";
+import { addDoc, collection, deleteDoc, doc, getDoc, onSnapshot, orderBy, query, serverTimestamp, setDoc, updateDoc } from "firebase/firestore";
 import { db } from "@/config/firebase";
 import type { Project } from "@/data/projects";
 
@@ -54,5 +54,9 @@ export function useProjects() {
 
   const toggleProject = async (project: Project) => updateProject(project.id, { activo: !project.activo });
 
-  return { projects, loading, error, addProject, updateProject, toggleProject };
+  const deleteProject = async (id: string) => {
+    await deleteDoc(doc(db, "projects", id));
+  };
+
+  return { projects, loading, error, addProject, updateProject, toggleProject, deleteProject };
 }
