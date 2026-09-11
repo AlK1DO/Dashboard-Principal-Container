@@ -5,6 +5,7 @@
     "paths": {
       "@/*": ["./src/*"]
     },
+    "ignoreDeprecations": "6.0",
     "target": "es2023",
     "lib": ["ES2023", "DOM"],
     "module": "esnext",
