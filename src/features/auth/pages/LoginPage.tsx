@@ -29,7 +29,7 @@ export default function LoginPage() {
   const [isSuccess, setIsSuccess] = React.useState(false)
   const [error, setError] = React.useState("")
 
-  const { login, isAuthenticated } = useAuth()
+  const { login, isAuthenticated, user } = useAuth()
   const navigate = useNavigate()
   const location = useLocation()
   
@@ -37,10 +37,16 @@ export default function LoginPage() {
 
   // Redirect if already authenticated
   React.useEffect(() => {
-    if (isAuthenticated) {
-      navigate(from, { replace: true })
+    if (isAuthenticated && user) {
+      if (from !== "/") {
+        navigate(from, { replace: true })
+      } else if (user.role === "admin") {
+        navigate("/admin", { replace: true })
+      } else {
+        navigate("/dashboard", { replace: true })
+      }
     }
-  }, [isAuthenticated, navigate, from])
+  }, [isAuthenticated, user, navigate, from])
 
   // Capturar el Magic Link al cargar la página
   React.useEffect(() => {
@@ -51,12 +57,17 @@ export default function LoginPage() {
       setIsLoading(true);
       try {
         const decodedEmail = atob(magic);
-        login(decodedEmail, "link").then(() => {
+        login(decodedEmail, "link").then((profile) => {
           setIsSuccess(true);
-          // Limpiar la URL
           window.history.replaceState({}, document.title, window.location.pathname);
           setTimeout(() => {
-            navigate(from, { replace: true });
+            if (from !== "/") {
+              navigate(from, { replace: true });
+            } else if (profile?.role === "admin") {
+              navigate("/admin", { replace: true });
+            } else {
+              navigate("/dashboard", { replace: true });
+            }
           }, 1000);
         }).catch(err => {
           console.error(err);
@@ -123,9 +134,15 @@ export default function LoginPage() {
     if (otp === expectedOTP) {
       setIsSuccess(true)
       try {
-        await login(email, "otp")
+        const profile = await login(email, "otp")
         setTimeout(() => {
-          navigate(from, { replace: true })
+          if (from !== "/") {
+            navigate(from, { replace: true })
+          } else if (profile.role === "admin") {
+            navigate("/admin", { replace: true })
+          } else {
+            navigate("/dashboard", { replace: true })
+          }
         }, 1000)
       } catch (err: any) {
         console.error("Login error:", err)

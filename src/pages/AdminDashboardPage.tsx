@@ -1,5 +1,4 @@
 import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import {
   Users,
@@ -10,14 +9,17 @@ import {
   Ban,
   UserX,
   AlertTriangle,
+  MessageSquare,
+  ChevronLeft,
 } from "lucide-react";
 import { Sidebar, SidebarBody, SidebarLink, type SidebarLinkItem } from "@/components/ui/sidebar";
 import Modal from "@/components/ui/Modal";
 import { cn } from "@/lib/utils";
-import { auth, db } from "@/config/firebase";
+import { db } from "@/config/firebase";
 import ProjectsModal from "@/components/ui/ProjectsModal";
-import { signOut } from "firebase/auth";
+import ChatWindow from "@/components/ui/ChatWindow";
 import { collection, onSnapshot, updateDoc, deleteDoc, doc, query, orderBy } from "firebase/firestore";
+import { useAuth } from "@/features/auth/context/AuthContext";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -54,11 +56,12 @@ const SidebarLogo = ({ expanded }: { expanded: boolean }) => (
 
 // ── Nav config ────────────────────────────────────────────────────────────────
 
-type Section = "projects" | "users";
+type Section = "projects" | "users" | "contact";
 
 const NAV_ITEMS: { section: Section; label: string; Icon: React.ElementType }[] = [
   { section: "projects", label: "Proyectos", Icon: FolderOpen },
   { section: "users",    label: "Usuarios",  Icon: Users },
+  { section: "contact",  label: "Mensajes",  Icon: MessageSquare },
 ];
 
 // ── Admin Page ────────────────────────────────────────────────────────────────
@@ -66,11 +69,14 @@ const NAV_ITEMS: { section: Section; label: string; Icon: React.ElementType }[] 
 export default function AdminDashboardPage() {
   const [open, setOpen] = useState(false);
   const [activeSection, setActiveSection] = useState<Section>("projects");
-  const navigate = useNavigate();
+  const { user: adminUser, logout } = useAuth();
 
   // Estado usuarios
   const [users, setUsers] = useState<AppUser[]>([]);
   const [loadingUsers, setLoadingUsers] = useState(true);
+
+  // Chat: cliente seleccionado
+  const [selectedChatClient, setSelectedChatClient] = useState<AppUser | null>(null);
 
   // Diálogo de confirmación genérico
   const [confirmDialog, setConfirmDialog] = useState<ConfirmDialog | null>(null);
@@ -81,8 +87,21 @@ export default function AdminDashboardPage() {
     const q = query(collection(db, "users"), orderBy("email"));
     return onSnapshot(
       q,
-      (snap) => {
-        setUsers(snap.docs.map((d) => ({ id: d.id, ...d.data() } as AppUser)));
+      async (snap) => {
+        const allDocs = snap.docs.map((d) => ({ id: d.id, ...d.data() } as AppUser));
+
+        // Limpiar documentos cuyo ID no coincide con su email (duplicados basura)
+        const garbage = allDocs.filter(
+          (u) => u.email && u.id !== u.email.toLowerCase()
+        );
+        if (garbage.length > 0) {
+          console.log(`Limpiando ${garbage.length} documentos duplicados...`);
+          await Promise.all(garbage.map((u) => deleteDoc(doc(db, "users", u.id))));
+          // El snapshot se actualizará solo después del borrado
+          return;
+        }
+
+        setUsers(allDocs);
         setLoadingUsers(false);
       },
       (error) => {
@@ -92,10 +111,8 @@ export default function AdminDashboardPage() {
     );
   }, []);
 
-  const handleLogout = async () => {
-    localStorage.removeItem("auth_email");
-    await signOut(auth);
-    navigate("/login");
+  const handleLogout = () => {
+    logout();
   };
 
   // ── Usuarios: cambiar rol ────────────────────────────────────────────────
@@ -202,10 +219,16 @@ export default function AdminDashboardPage() {
         <header className="flex items-center justify-between px-6 py-4 bg-white dark:bg-neutral-800 border-b border-neutral-200 dark:border-neutral-700 flex-shrink-0">
           <div>
             <h1 className="text-xl font-semibold text-neutral-900 dark:text-white">
-              {activeSection === "projects" ? "Proyectos" : "Usuarios"}
+              {activeSection === "projects" ? "Proyectos" : activeSection === "users" ? "Usuarios" : "Mensajes"}
             </h1>
             <p className="text-sm text-neutral-500 dark:text-neutral-400">
-              {activeSection === "projects" ? "Administra el catálogo de proyectos" : `${users.length} usuarios registrados`}
+              {activeSection === "projects"
+                ? "Administra el catálogo de proyectos"
+                : activeSection === "users"
+                ? `${users.length} usuarios registrados`
+                : selectedChatClient
+                ? `Chat con ${selectedChatClient.email}`
+                : "Selecciona un cliente para chatear"}
             </p>
           </div>
         </header>
@@ -253,10 +276,10 @@ export default function AdminDashboardPage() {
                         </div>
                         <div className="min-w-0">
                           <p className="truncate text-sm font-medium text-neutral-900 dark:text-white">
-                            {u.displayName || "Sin nombre"}
+                            {u.email}
                           </p>
                           <p className="truncate text-xs text-neutral-500 dark:text-neutral-400">
-                            {u.email}
+                            {u.role === "admin" ? "Administrador" : "Cliente"}
                           </p>
                         </div>
                       </div>
@@ -317,6 +340,83 @@ export default function AdminDashboardPage() {
                   ))}
                 </div>
               )}
+            </motion.div>
+          )}
+
+          {/* ── Mensajes / Chat ── */}
+          {activeSection === "contact" && (
+            <motion.div
+              key="contact"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ duration: 0.2 }}
+              className="flex gap-4 h-full"
+            >
+              {/* Lista de clientes */}
+              <div className="w-64 flex-shrink-0 flex flex-col gap-2">
+                <p className="text-xs font-semibold uppercase tracking-wider text-neutral-400 mb-1 px-1">
+                  Clientes
+                </p>
+                {loadingUsers && (
+                  <p className="text-sm text-neutral-400 px-1">Cargando...</p>
+                )}
+                {!loadingUsers && users.filter(u => u.role === "client").length === 0 && (
+                  <p className="text-sm text-neutral-400 px-1">No hay clientes aún.</p>
+                )}
+                {users
+                  .filter((u) => u.role === "client")
+                  .map((u) => (
+                    <button
+                      key={u.id}
+                      type="button"
+                      onClick={() => setSelectedChatClient(u)}
+                      className={cn(
+                        "flex items-center gap-3 rounded-xl border px-3 py-2.5 text-left transition-colors",
+                        selectedChatClient?.id === u.id
+                          ? "border-blue-300 bg-blue-50 dark:border-blue-700 dark:bg-blue-950/30"
+                          : "border-neutral-200 bg-white hover:bg-neutral-50 dark:border-neutral-700 dark:bg-neutral-800 dark:hover:bg-neutral-700"
+                      )}
+                    >
+                      <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-neutral-200 dark:bg-neutral-700">
+                        <Users className="h-3.5 w-3.5 text-neutral-500" />
+                      </div>
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-medium text-neutral-900 dark:text-white">
+                          {u.email}
+                        </p>
+                      </div>
+                    </button>
+                  ))}
+              </div>
+
+              {/* Panel de chat */}
+              <div className="flex-1 min-w-0">
+                {!selectedChatClient ? (
+                  <div className="flex h-full items-center justify-center rounded-2xl border border-dashed border-neutral-300 dark:border-neutral-700">
+                    <div className="text-center text-neutral-400">
+                      <MessageSquare className="mx-auto h-10 w-10 mb-3 opacity-40" />
+                      <p className="text-sm">Selecciona un cliente para ver su chat</p>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex flex-col gap-3 h-full">
+                    <button
+                      type="button"
+                      onClick={() => setSelectedChatClient(null)}
+                      className="flex items-center gap-1.5 text-sm text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300 self-start"
+                    >
+                      <ChevronLeft className="h-4 w-4" />
+                      Volver a lista
+                    </button>
+                    <ChatWindow
+                      clientEmail={selectedChatClient.email.toLowerCase()}
+                      currentUserEmail={adminUser?.email?.toLowerCase() ?? ""}
+                      currentUserRole="admin"
+                      className="flex-1"
+                    />
+                  </div>
+                )}
+              </div>
             </motion.div>
           )}
         </main>

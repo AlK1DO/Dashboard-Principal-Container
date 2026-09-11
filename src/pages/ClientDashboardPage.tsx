@@ -1,5 +1,4 @@
 import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import {
   ExternalLink,
@@ -9,15 +8,17 @@ import {
   LayoutDashboard,
   Link,
   LogOut,
+  MessageSquare,
   UserCog,
 } from "lucide-react";
+import ChatWindow from "@/components/ui/ChatWindow";
 import { Sidebar, SidebarBody, SidebarLink, type SidebarLinkItem } from "@/components/ui/sidebar";
 import { type Project } from "@/data/projects";
 import { cn } from "@/lib/utils";
-import { auth, db } from "@/config/firebase";
-import { signOut } from "firebase/auth";
+import { db } from "@/config/firebase";
 import { collection, query, where, onSnapshot } from "firebase/firestore";
 import { useAuth } from "@/hooks/useAuth";
+import { useAuth as useAuthContext } from "@/features/auth/context/AuthContext";
 
 // ── Logo ─────────────────────────────────────────────────────────────────────
 
@@ -109,11 +110,12 @@ const ProjectTile = ({ project, onOpen }: { project: Project; onOpen: (project: 
 
 // ── Nav config ────────────────────────────────────────────────────────────────
 
-type Section = "dashboard" | "profile";
+type Section = "dashboard" | "messages" | "profile";
 
 const NAV_ITEMS: { section: Section; label: string; Icon: React.ElementType }[] = [
-  { section: "dashboard", label: "Dashboard", Icon: LayoutDashboard },
-  { section: "profile",   label: "Perfil",    Icon: UserCog },
+  { section: "dashboard", label: "Dashboard",  Icon: LayoutDashboard },
+  { section: "messages",  label: "Mensajes",   Icon: MessageSquare },
+  { section: "profile",   label: "Perfil",     Icon: UserCog },
 ];
 
 // ── Page ─────────────────────────────────────────────────────────────────────
@@ -124,9 +126,9 @@ export default function ClientDashboardPage() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [loadingProjects, setLoadingProjects] = useState(true);
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
-  const navigate = useNavigate();
 
   const { user } = useAuth();
+  const { logout } = useAuthContext();
 
   // Proyectos activos visibles para el usuario:
   // - Si authorizedUsers está vacío → visible para todos los clientes.
@@ -157,10 +159,8 @@ export default function ClientDashboardPage() {
     );
   }, [user?.email]);
 
-  const handleLogout = async () => {
-    localStorage.removeItem("auth_email");
-    await signOut(auth);
-    navigate("/login");
+  const handleLogout = () => {
+    logout();
   };
 
   const navLinks: (SidebarLinkItem & { section: Section })[] = NAV_ITEMS.map(
@@ -223,11 +223,13 @@ export default function ClientDashboardPage() {
         <header className="flex items-center px-6 py-4 bg-white dark:bg-neutral-800 border-b border-neutral-200 dark:border-neutral-700 flex-shrink-0">
           <div>
             <h1 className="text-xl font-semibold text-neutral-900 dark:text-white">
-              {activeSection === "dashboard" ? "Dashboard" : "Mi Perfil"}
+              {activeSection === "dashboard" ? "Dashboard" : activeSection === "messages" ? "Mensajes" : "Mi Perfil"}
             </h1>
             <p className="text-sm text-neutral-500 dark:text-neutral-400">
               {activeSection === "dashboard"
                 ? `${projects.length} proyectos disponibles`
+                : activeSection === "messages"
+                ? "Chat con el equipo"
                 : user?.email ?? ""}
             </p>
           </div>
@@ -270,6 +272,30 @@ export default function ClientDashboardPage() {
                     </motion.div>
                   ))}
                 </div>
+              )}
+            </motion.div>
+          )}
+
+          {activeSection === "messages" && (
+            <motion.div
+              key="messages"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ duration: 0.2 }}
+              className="flex flex-col h-full"
+            >
+              {!user?.email ? (
+                <div className="flex h-64 items-center justify-center">
+                  <p className="text-sm text-neutral-400">Cargando...</p>
+                </div>
+              ) : (
+                <ChatWindow
+                  clientEmail={user.email.toLowerCase()}
+                  currentUserEmail={user.email.toLowerCase()}
+                  currentUserRole="client"
+                  adminEmail={import.meta.env.VITE_ADMIN_EMAIL}
+                  className="flex-1 h-full"
+                />
               )}
             </motion.div>
           )}

@@ -9,6 +9,7 @@ import { AuthProvider } from "@/features/auth/context/AuthContext";
 import LoginPage from "@/features/auth/pages/LoginPage";
 import PendingApprovalPage from "@/features/auth/pages/PendingApprovalPage";
 import { ensureInitialProject } from "@/hooks/useProjects";
+import LandingPage from "@/pages/LandingPage";
 
 function App() {
   useEffect(() => {
@@ -21,7 +22,7 @@ function App() {
     <AuthProvider>
       <BrowserRouter>
         <Routes>
-          <Route path="/" element={<Navigate to="/dashboard" replace />} />
+          <Route path="/" element={<LandingPage />} />
           <Route path="/login" element={<LoginPage />} />
           <Route path="/pending-approval" element={<PendingApprovalPage />} />
 
@@ -43,8 +44,8 @@ function App() {
             }
           />
 
-          {/* Fallback: cualquier ruta desconocida va al dashboard */}
-          <Route path="*" element={<Navigate to="/dashboard" replace />} />
+          {/* Fallback: cualquier ruta desconocida va al landing */}
+          <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </BrowserRouter>
     </AuthProvider>
