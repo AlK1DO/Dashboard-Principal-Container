@@ -51,19 +51,19 @@ export const sendMagicLinkEmail = async (email: string, link: string) => {
 
 export const sendContactEmail = async (fullName: string, email: string, message: string) => {
   const serviceId = import.meta.env.VITE_EMAILJS_SERVICE_ID;
-  const templateContactId = import.meta.env.VITE_EMAILJS_TEMPLATE_ID_CONTACT || "template_contact"; 
+  const templateUniversalId = import.meta.env.VITE_EMAILJS_TEMPLATE_ID_CONTACT; 
   const publicKey = import.meta.env.VITE_EMAILJS_PUBLIC_KEY;
-  const adminEmail = import.meta.env.VITE_ADMIN_EMAIL || "kellerrobles23@gmail.com";
+  const adminEmail = import.meta.env.VITE_ADMIN_EMAIL || "jjsjpm2@gmail.com";
 
   try {
     const response = await emailjs.send(
       serviceId,
-      templateContactId,
+      templateUniversalId,
       {
-        to_admin_email: adminEmail,
-        from_name: fullName,
+        to_email: adminEmail,
         reply_to: email,
-        message: message,
+        dynamic_subject: `Nuevo contacto desde la web de: ${fullName}`,
+        dynamic_content: `Tienes un nuevo mensaje desde el formulario web.\n\nNombre del cliente: ${fullName}\nCorreo del cliente: ${email}\n\nMensaje:\n${message}`,
       },
       publicKey
     );
@@ -80,41 +80,44 @@ export const sendChatNotificationEmail = async (
   messageText: string
 ) => {
   const serviceId = import.meta.env.VITE_EMAILJS_SERVICE_ID;
-  const templateId = import.meta.env.VITE_EMAILJS_TEMPLATE_ID_CHAT;
+  // Usamos la misma plantilla universal
+  const templateUniversalId = import.meta.env.VITE_EMAILJS_TEMPLATE_ID_CONTACT;
   const publicKey = import.meta.env.VITE_EMAILJS_PUBLIC_KEY;
 
-  if (!templateId) return; // Si no está configurado, no falla
+  if (!templateUniversalId) return;
+  
+  const roleName = fromRole === "admin" ? "Soporte Técnico" : "Cliente";
   try {
     await emailjs.send(
       serviceId,
-      templateId,
+      templateUniversalId,
       {
         to_email: toEmail,
-        from_email: fromEmail,
-        from_role: fromRole === "admin" ? "Administrador" : "Cliente",
-        message_preview: messageText.slice(0, 200),
+        reply_to: fromEmail,
+        dynamic_subject: `Nuevo mensaje de ${roleName} en Sempiterno`,
+        dynamic_content: `Has recibido un nuevo mensaje en el chat.\n\nRemitente: ${fromEmail} (${roleName})\n\nMensaje:\n${messageText.slice(0, 200)}${messageText.length > 200 ? '...' : ''}\n\nIngresa a la plataforma para responder.`,
       },
       publicKey
     );
   } catch (error) {
     console.error("Error sending chat notification email:", error);
-    // No relanzamos — la notificación es opcional, no bloquea el chat
   }
 };
 
 export const sendReplyEmail = async (clientEmail: string, clientName: string, replyMessage: string) => {
   const serviceId = import.meta.env.VITE_EMAILJS_SERVICE_ID;
-  const templateReplyId = import.meta.env.VITE_EMAILJS_TEMPLATE_ID_REPLY || "template_reply"; 
+  const templateUniversalId = import.meta.env.VITE_EMAILJS_TEMPLATE_ID_CONTACT; 
   const publicKey = import.meta.env.VITE_EMAILJS_PUBLIC_KEY;
 
   try {
     const response = await emailjs.send(
       serviceId,
-      templateReplyId,
+      templateUniversalId,
       {
         to_email: clientEmail,
-        to_name: clientName,
-        reply_message: replyMessage,
+        reply_to: import.meta.env.VITE_ADMIN_EMAIL || "jjsjpm2@gmail.com",
+        dynamic_subject: `Tu solicitud de contacto fue aprobada`,
+        dynamic_content: `Hola ${clientName},\n\nTu solicitud de contacto ha sido revisada y aprobada. Aquí tienes la respuesta de nuestro equipo:\n\n${replyMessage}\n\nYa puedes iniciar sesión en la plataforma en cualquier momento usando tu correo electrónico (${clientEmail}) para continuar chateando con nosotros.\n\nAtentamente,\nEquipo Sempiterno.`,
       },
       publicKey
     );

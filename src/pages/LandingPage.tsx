@@ -148,7 +148,7 @@ export default function LandingPage() {
                 <img 
                   src={tech.src} 
                   alt={tech.name} 
-                  className="w-10 h-10 object-contain transition-all duration-300 opacity-60 grayscale group-hover:grayscale-0 group-hover:opacity-100 drop-shadow-sm" 
+                  className="w-10 h-10 object-contain transition-all duration-300 drop-shadow-sm" 
                 />
                 <span className="absolute -bottom-7 opacity-0 group-hover:opacity-100 transition-opacity duration-300 text-[11px] font-semibold text-neutral-700 dark:text-neutral-300 whitespace-nowrap bg-white/80 dark:bg-black/80 px-2 py-0.5 rounded-md backdrop-blur-sm border border-neutral-200 dark:border-neutral-800 pointer-events-none shadow-sm">
                   {tech.name}
